@@ -12,7 +12,7 @@ import {
   type InsertTicketSchema,
 } from "@/zod-schemas/ticket";
 
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 
 export const saveTicketAction = actionClient
   .metadata({ actionName: "saveTicketAction" })
@@ -26,11 +26,9 @@ export const saveTicketAction = actionClient
     }: {
       parsedInput: InsertTicketSchema;
     }) => {
-      const { isAuthenticated } = getKindeServerSession();
+      const { userId } = auth();
 
-      const isAuth = await isAuthenticated();
-
-      if (!isAuth) redirect("/login");
+      if (!userId) redirect("/login");
 
       // New ticket
       // All new tickets are open by default - no need to set completed to true

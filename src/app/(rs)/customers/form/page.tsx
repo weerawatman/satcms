@@ -2,7 +2,7 @@ import { getCustomer } from "@/lib/queries/getCustomer";
 import { BackButton } from "@/components/BackButton";
 import * as Sentry from "@sentry/nextjs"
 import CustomerForm from "@/app/(rs)/customers/form/CustomerForm";
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 
 export async function generateMetadata({
     searchParams,
@@ -22,9 +22,11 @@ export default async function CustomerFormPage({
     searchParams: Promise<{ [key: string]: string | undefined }>
 }) {
     try {
-        const { getPermission } = getKindeServerSession()
-        const managerPermission = await getPermission("manager")
-        const isManager = managerPermission?.isGranted
+        const { sessionClaims } = auth()
+        const publicRole =
+            (sessionClaims?.publicMetadata as { role?: string } | undefined)?.
+                role
+        const isManager = publicRole === "manager" || sessionClaims?.orgRole === "manager"
 
         const { customerId } = await searchParams
 

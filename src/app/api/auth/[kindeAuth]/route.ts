@@ -1,2 +1,4 @@
-import { handleAuth } from "@kinde-oss/kinde-auth-nextjs/server";
-export const GET = handleAuth();
+import { NextResponse } from "next/server";
+
+export const GET = async () =>
+	NextResponse.json({ message: "Not found" }, { status: 404 });

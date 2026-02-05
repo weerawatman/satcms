@@ -12,7 +12,7 @@ import {
   type InsertCustomerSchema,
 } from "@/zod-schemas/customer";
 
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
+import { auth } from "@clerk/nextjs/server";
 
 export const saveCustomerAction = actionClient
   .metadata({ actionName: "saveCustomerAction" })
@@ -29,12 +29,10 @@ export const saveCustomerAction = actionClient
       // test redirect
       // redirect("/customers");
 
-      const { isAuthenticated } = getKindeServerSession();
-
-      const isAuth = await isAuthenticated();
+      const { userId } = auth();
 
       // New Customer
-      if (!isAuth) redirect("/login");
+      if (!userId) redirect("/login");
 
       // throw Error("Test Error");
       // const data = await fetch('https://jsoplaceholder');

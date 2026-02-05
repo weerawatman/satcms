@@ -4,9 +4,7 @@ import { BackButton } from "@/components/BackButton";
 import * as Sentry from "@sentry/nextjs";
 import TicketForm from "@/app/(rs)/tickets/form/TicketForm";
 
-import { getKindeServerSession } from "@kinde-oss/kinde-auth-nextjs/server";
-
-import { Users, init as kindeInit } from "@kinde/management-api-js";
+import { auth, clerkClient, currentUser } from "@clerk/nextjs/server";
 
 export async function generateMetadata({
   searchParams,
@@ -50,12 +48,12 @@ export default async function TicketFormPage({
       );
     }
 
-    const { getPermission, getUser } = getKindeServerSession();
-    const [managerPermission, user] = await Promise.all([
-      getPermission("manager"),
-      getUser(),
-    ]);
-    const isManager = managerPermission?.isGranted;
+    const { sessionClaims } = auth();
+    const publicRole =
+      (sessionClaims?.publicMetadata as { role?: string } | undefined)?.role;
+    const isManager =
+      publicRole === "manager" || sessionClaims?.orgRole === "manager";
+    const user = await currentUser();
 
     // New ticket form
     if (customerId) {
@@ -85,19 +83,21 @@ export default async function TicketFormPage({
 
       // return ticket form
       if (isManager) {
-        kindeInit(); // Initializes the Kinde Management API
-        const { users } = await Users.getUsers();
+        const { data: users } = await clerkClient.users.getUserList({
+          limit: 100,
+        });
 
         const techs = users
-          ? users.map((user) => ({ id: user.email!, description: user.email! }))
-          : [];
+          .map((clerkUser) => clerkUser.emailAddresses[0]?.emailAddress)
+          .filter((email): email is string => typeof email === "string")
+          .map((email) => ({ id: email, description: email }));
 
         return (
           <TicketForm customer={customer} techs={techs} isManager={isManager} />
         );
-      } else {
-        return <TicketForm customer={customer} />;
       }
+
+      return <TicketForm customer={customer} />;
     }
 
     // Edit ticket form
@@ -117,20 +117,17 @@ export default async function TicketFormPage({
 
       // return ticket form
       if (isManager) {
-        kindeInit(); // Initializes the Kinde Management API
-        const { users } = await Users.getUsers();
+        const { data: users } = await clerkClient.users.getUserList({
+          limit: 100,
+        });
 
         const techs = users
-          ? users
-              .filter(
-                (user): user is { email: string } =>
-                  typeof user.email === "string",
-              )
-              .map((user) => ({
-                id: user.email?.toLowerCase(),
-                description: user.email?.toLowerCase(),
-              }))
-          : [];
+          .map((clerkUser) => clerkUser.emailAddresses[0]?.emailAddress)
+          .filter((email): email is string => typeof email === "string")
+          .map((email) => ({
+            id: email.toLowerCase(),
+            description: email.toLowerCase(),
+          }));
 
         return (
           <TicketForm
@@ -140,18 +137,19 @@ export default async function TicketFormPage({
             isManager={isManager}
           />
         );
-      } else {
-        const isEditable =
-          (user?.email ?? "").toLowerCase() === ticket.tech.toLowerCase();
-
-        return (
-          <TicketForm
-            customer={customer}
-            ticket={ticket}
-            isEditable={isEditable}
-          />
-        );
       }
+
+      const userEmail = user?.emailAddresses[0]?.emailAddress ?? "";
+      const isEditable =
+        userEmail.toLowerCase() === ticket.tech.toLowerCase();
+
+      return (
+        <TicketForm
+          customer={customer}
+          ticket={ticket}
+          isEditable={isEditable}
+        />
+      );
     }
   } catch (e) {
     if (e instanceof Error) {
